@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using RosMessageTypes.Geometry;
-using RosMessageTypes.Ur10eRg2Moveit;
+using RosMessageTypes.Moveit;
+using RosMessageTypes.Std;
+using RosMessageTypes.Shape;
 using Unity.Robotics.ROSTCPConnector;
 using Unity.Robotics.ROSTCPConnector.ROSGeometry;
-using RosMessageTypes.Moveit;
 using UnityEngine;
 
 public class TableDestinationPublisher : MonoBehaviour
@@ -33,14 +35,23 @@ public class TableDestinationPublisher : MonoBehaviour
 
         var collisionObject = new CollisionObjectMsg
         {
-            x = tablePose.position.x,
-            y = tablePose.position.y,
-            z = tablePose.position.z,
-            width = 1.0, // Example width
-            height = 1.0, // Example height
-            depth = 1.0  // Example depth
+            header = new HeaderMsg
+            {
+                frame_id = "world"
+            },
+            id = "table",
+            operation = CollisionObjectMsg.ADD,
+            primitive_poses = new List<PoseMsg> { tablePose }.ToArray(),
+            primitives = new List<SolidPrimitiveMsg> {
+                new SolidPrimitiveMsg
+                {
+                    type = SolidPrimitiveMsg.BOX,
+                    dimensions = new double[] { 1.0, 1.0, 1.0 } // Example dimensions
+                }
+            }.ToArray()
         };
 
+        // Publish the collision object
         m_Ros.Publish(m_TopicName, collisionObject);
     }
 }
