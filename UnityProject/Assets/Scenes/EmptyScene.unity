@@ -522,6 +522,11 @@ MeshCollider:
   m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: 4300000, guid: 6665a11b0ae5bb3b9bbd956c9bfc747a, type: 2}
+--- !u!1 &118033875 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3302142234816977626, guid: 85db2308098d34a79837fb7356902f62, type: 3}
+  m_PrefabInstance: {fileID: 319214233}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &118542765
 GameObject:
   m_ObjectHideFlags: 0
@@ -2526,9 +2531,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1645827015}
-        m_TargetAssemblyTypeName: TrajectoryPlanner, Unity.Robotics.PickAndPlace
-        m_MethodName: PublishJoints
+      - m_Target: {fileID: 1645827017}
+        m_TargetAssemblyTypeName: TableDestinationPublisher, Unity.Robotics.PickAndPlace
+        m_MethodName: Publish
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -6835,6 +6840,7 @@ GameObject:
   - component: {fileID: 1645827016}
   - component: {fileID: 1645827013}
   - component: {fileID: 1645827015}
+  - component: {fileID: 1645827017}
   m_Layer: 0
   m_Name: Publisher
   m_TagString: Untagged
@@ -6901,6 +6907,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   topicName: simple_topic
+--- !u!114 &1645827017
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1645827012}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8fd303ad3004e76a2853ee023b4bba47, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_TopicName: /table_coordinates
+  m_Table: {fileID: 118033875}
 --- !u!1 &1647330934
 GameObject:
   m_ObjectHideFlags: 0
