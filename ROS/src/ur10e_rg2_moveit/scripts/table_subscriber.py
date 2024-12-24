@@ -1,15 +1,18 @@
 #!/usr/bin/env python
-
+"""
+    Subscribes to "/collision_object" topic.
+    Logs the received positions and dimensions of Collision Object - Table.
+"""
 import rospy
-from geometry_msgs.msg import Pose
+from moveit_msgs.msg import CollisionObject
 
-def table_callback(msg):
-    rospy.loginfo("Table Position: x=%f, y=%f, z=%f", msg.position.x, msg.position.y, msg.position.z)
-    rospy.loginfo("Table Orientation: x=%f, y=%f, z=%f, w=%f", msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w)
+def collision_callback(msg):
+    rospy.loginfo("Collision Object Position: x=%f, y=%f, z=%f", msg.x, msg.y, msg.z)
+    rospy.loginfo("Collision Object Dimensions: width=%f, height=%f, depth=%f", msg.width, msg.height, msg.depth)
 
 def table_subscriber():
-    rospy.init_node('table_subscriber', anonymous=True)
-    rospy.Subscriber("/table_coordinates", Pose, table_callback)
+    rospy.init_node('collision_subscriber', anonymous=True)
+    rospy.Subscriber("/collision_object", CollisionObject, collision_callback)
     rospy.spin()
 
 if __name__ == '__main__':
