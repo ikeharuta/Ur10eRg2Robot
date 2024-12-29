@@ -68,6 +68,7 @@ Ensure there are no errors. The ROS workspace is now ready to accept commands!
 ## Usage
 
 Follow these steps to run the simulation:
+// TODO: Add usage
 
 ## Project Structure
 
@@ -98,5 +99,7 @@ ur10e_rg2_PickAndPlace/
 ```
 
 ## Contributing
+// TODO: Add contributing
 
 ## License
+// TODO: Add License
