@@ -27,10 +27,55 @@ public class TableDestinationPublisher : MonoBehaviour
 
     public void Publish()
     {
+        // Get the mesh information
+        MeshFilter meshFilter = m_Table.GetComponent<MeshFilter>();
+
+        Mesh mesh = meshFilter.mesh;
+        Vector3[] vertices = mesh.vertices;
+        int[] triangles = mesh.triangles;
+
+        // Create shape_msgs/Mesh from the Unity mesh
+        List<MeshMsg> meshMsgs = new List<MeshMsg>();
+        MeshMsg meshMsg = new MeshMsg();
+
+        List<PointMsg> points = new List<PointMsg>();
+        foreach (var vertex in vertices)
+        {
+            Vector3 worldVertex = m_Table.transform.TransformPoint(vertex);
+            points.Add(new PointMsg(worldVertex.x, worldVertex.y, worldVertex.z));
+        }
+
+        List<MeshTriangleMsg> triangleMsgs = new List<MeshTriangleMsg>();
+        for (int i = 0; i < triangles.Length; i += 3)
+        {
+            MeshTriangleMsg triangleMsg = new MeshTriangleMsg
+            {
+                vertex_indices = new uint[] { (uint)triangles[i], (uint)triangles[i + 1], (uint)triangles[i + 2] }
+            };
+            triangleMsgs.Add(triangleMsg);
+        }
+
+        meshMsg.vertices = points.ToArray();
+        meshMsg.triangles = triangleMsgs.ToArray();
+        meshMsgs.Add(meshMsg);
+
+        // Convert the orientation from Unity to ROS and account for the 90-degree difference
+        Vector3 unityPosition = m_Table.transform.position;
+        Quaternion unityRotation = m_Table.transform.rotation;
+
+        // Adjust the rotation by 90 degrees around the x-axis
+        Quaternion adjustment = Quaternion.Euler(90, 0, 0);
+        Quaternion rosQuaternion = unityRotation * adjustment;
+
         var tablePose = new PoseMsg
         {
-            position = m_Table.transform.position.To<FLU>(),
-            orientation = m_Table.transform.rotation.To<FLU>()
+            position = unityPosition.To<FLU>(),
+            orientation = new QuaternionMsg(
+                rosQuaternion.x,
+                rosQuaternion.y,
+                rosQuaternion.z,
+                rosQuaternion.w
+            )
         };
 
         var collisionObject = new CollisionObjectMsg
@@ -39,27 +84,11 @@ public class TableDestinationPublisher : MonoBehaviour
             {
                 frame_id = "world"
             },
-            id = "table", // Ensure the ID is assigned
+            id = "table",
             operation = CollisionObjectMsg.ADD,
-            primitive_poses = new List<PoseMsg> { tablePose }.ToArray(),
-            primitives = new List<SolidPrimitiveMsg> {
-                new SolidPrimitiveMsg
-                {
-                    type = SolidPrimitiveMsg.BOX,
-                    dimensions = new double[] {
-                        m_Table.transform.localScale.x,
-                        m_Table.transform.localScale.y,
-                        m_Table.transform.localScale.z
-                    }
-                }
-            }.ToArray()
+            mesh_poses = new List<PoseMsg> { tablePose }.ToArray(),
+            meshes = meshMsgs.ToArray()
         };
-
-        Debug.Log($"Collision Object Header: {collisionObject.header.frame_id}");
-        Debug.Log($"Collision Object ID: {collisionObject.id}");
-        Debug.Log($"Collision Object operation: {collisionObject.operation}");
-        Debug.Log($"Collision Object primitive_poses: {collisionObject.primitive_poses}");
-        Debug.Log($"Collision Object primitives: {collisionObject.primitives}");
 
         // Publish the collision object
         m_Ros.Publish(m_TopicName, collisionObject);

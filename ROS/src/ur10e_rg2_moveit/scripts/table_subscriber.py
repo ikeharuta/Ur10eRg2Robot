@@ -13,11 +13,8 @@ from shape_msgs.msg import SolidPrimitive
 def collision_callback(msg):
     rospy.loginfo("Received a new collision object message:")
     rospy.loginfo("ID: %s", msg.id)
-    if len(msg.primitives) > 0 and len(msg.primitive_poses) > 0:
-        primitive = msg.primitives[0]
-        pose = msg.primitive_poses[0]
-        rospy.loginfo("Primitive type: %d", primitive.type)
-        rospy.loginfo("Dimensions: width=%f, height=%f, depth=%f", primitive.dimensions[0], primitive.dimensions[1], primitive.dimensions[2])
+    if len(msg.mesh_poses) > 0:
+        pose = msg.mesh_poses[0]
         rospy.loginfo("Pose: position - x=%f, y=%f, z=%f", pose.position.x, pose.position.y, pose.position.z)
         rospy.loginfo("Pose: orientation - x=%f, y=%f, z=%f, w=%f", pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
 
