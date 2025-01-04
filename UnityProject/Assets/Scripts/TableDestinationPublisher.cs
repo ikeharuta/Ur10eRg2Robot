@@ -11,13 +11,13 @@ using UnityEngine;
 public class TableDestinationPublisher : MonoBehaviour
 {
     [SerializeField]
-    string m_TopicName = "/collision_object";
+    private string m_TopicName = "/collision_object";
 
     [SerializeField]
-    GameObject m_Table;
+    private GameObject m_Table;
 
     // ROS Connector
-    ROSConnection m_Ros;
+    private ROSConnection m_Ros;
 
     void Start()
     {
@@ -39,17 +39,27 @@ public class TableDestinationPublisher : MonoBehaviour
             {
                 frame_id = "world"
             },
-            id = "table",
+            id = "table", // Ensure the ID is assigned
             operation = CollisionObjectMsg.ADD,
             primitive_poses = new List<PoseMsg> { tablePose }.ToArray(),
             primitives = new List<SolidPrimitiveMsg> {
                 new SolidPrimitiveMsg
                 {
                     type = SolidPrimitiveMsg.BOX,
-                    dimensions = new double[] { 1.0, 1.0, 1.0 } // Example dimensions
+                    dimensions = new double[] {
+                        m_Table.transform.localScale.x,
+                        m_Table.transform.localScale.y,
+                        m_Table.transform.localScale.z
+                    }
                 }
             }.ToArray()
         };
+
+        Debug.Log($"Collision Object Header: {collisionObject.header.frame_id}");
+        Debug.Log($"Collision Object ID: {collisionObject.id}");
+        Debug.Log($"Collision Object operation: {collisionObject.operation}");
+        Debug.Log($"Collision Object primitive_poses: {collisionObject.primitive_poses}");
+        Debug.Log($"Collision Object primitives: {collisionObject.primitives}");
 
         // Publish the collision object
         m_Ros.Publish(m_TopicName, collisionObject);

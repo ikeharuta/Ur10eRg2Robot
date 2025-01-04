@@ -7,4 +7,5 @@
         <param name="tcp_port" type="int" value="$(arg tcp_port)"/>
 	</node>
     <node name="table_subscriber" pkg="ur10e_rg2_moveit" type="table_subscriber.py" args="--wait" output="screen"/>
+    
 </launch>
