@@ -11,7 +11,7 @@ import moveit_commander
 import moveit_msgs.msg
 from moveit_msgs.msg import Constraints, JointConstraint, PositionConstraint, OrientationConstraint, BoundingVolume
 from sensor_msgs.msg import JointState
-from moveit_msgs.msg import RobotState
+from moveit_msgs.msg import RobotState, CollisionObject
 import geometry_msgs.msg
 from geometry_msgs.msg import Quaternion, Pose
 from std_msgs.msg import String
@@ -28,7 +28,18 @@ if sys.version_info >= (3, 0):
 else:
     def planCompat(plan):
         return plan
-        
+
+"""
+    Callback function to log the received collision object message.
+"""
+def collision_callback(msg):
+    rospy.loginfo("Received a new collision object message:")
+    rospy.loginfo("ID: %s", msg.id)
+    if len(msg.mesh_poses) > 0:
+        pose = msg.mesh_poses[0]
+        rospy.loginfo("Pose: position - x=%f, y=%f, z=%f", pose.position.x, pose.position.y, pose.position.z)
+        rospy.loginfo("Pose: orientation - x=%f, y=%f, z=%f, w=%f", pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
+   
 """
     Given the start angles of the robot, plan a trajectory that ends at the destination pose.
 """
@@ -52,7 +63,6 @@ def plan_trajectory(move_group, destination_pose, start_joint_angles):
         raise Exception(exception_str)
 
     return planCompat(plan)
-
 
 """
     Creates a pick and place plan using the four states below.
@@ -121,11 +131,19 @@ def plan_pick_and_place(req):
 
 
 def moveit_server():
+    """
+    Initialize the moveit server and set up the collision object subscriber.
+    """
     moveit_commander.roscpp_initialize(sys.argv)
     rospy.init_node('ur10e_rg2_moveit_server')
 
+    # Set up the service for trajectory planning
     s = rospy.Service('ur10e_rg2_moveit', MoverService, plan_pick_and_place)
     print("Ready to plan")
+
+    # Set up the subscriber for collision objects
+    rospy.Subscriber("/collision_object", CollisionObject, collision_callback)
+
     rospy.spin()
 
 

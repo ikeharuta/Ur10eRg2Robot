@@ -1,8 +1,12 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using RosMessageTypes.Geometry;
 using RosMessageTypes.Ur10eRg2Moveit;
+using RosMessageTypes.Moveit;
+using RosMessageTypes.Std;
+using RosMessageTypes.Shape;
 using Unity.Robotics.ROSTCPConnector;
 using Unity.Robotics.ROSTCPConnector.ROSGeometry;
 using UnityEngine;
@@ -16,6 +20,8 @@ public class TrajectoryPlanner : MonoBehaviour
 
     // Variables required for ROS communication
     [SerializeField]
+    private string m_TopicName = "/collision_object";
+    [SerializeField]
     string m_RosServiceName = "ur10e_rg2_moveit";
     public string RosServiceName { get => m_RosServiceName; set => m_RosServiceName = value; }
 
@@ -28,6 +34,8 @@ public class TrajectoryPlanner : MonoBehaviour
     [SerializeField]
     GameObject m_TargetPlacement;
     public GameObject TargetPlacement { get => m_TargetPlacement; set => m_TargetPlacement = value; }
+    [SerializeField]
+    GameObject m_Table;
 
     // Assures that the gripper is always positioned above the m_Target cube before grasping.
     readonly Quaternion m_PickOrientation = Quaternion.Euler(180, 90, 0);
@@ -52,6 +60,8 @@ public class TrajectoryPlanner : MonoBehaviour
         // Get ROS connection static instance
         m_Ros = ROSConnection.GetOrCreateInstance();
         m_Ros.RegisterRosService<MoverServiceRequest, MoverServiceResponse>(m_RosServiceName);
+        // Register the collision object publisher
+        m_Ros.RegisterPublisher<CollisionObjectMsg>(m_TopicName);
 
         m_JointArticulationBodies = new ArticulationBody[k_NumRobotJoints];
 
@@ -129,6 +139,9 @@ public class TrajectoryPlanner : MonoBehaviour
     /// </summary>
     public void PublishJoints()
     {
+        // Publish the table mesh at the start
+        PublishTableMesh();
+
         var request = new MoverServiceRequest();
         request.joints_input = CurrentJointConfig();
 
@@ -224,4 +237,73 @@ public class TrajectoryPlanner : MonoBehaviour
         PickUp,
         Place
     }
+
+    void PublishTableMesh()
+    {
+        Debug.Log("Mesh is published");
+        MeshFilter meshFilter = m_Table.GetComponent<MeshFilter>();
+
+        Mesh mesh = meshFilter.mesh;
+        Vector3[] vertices = mesh.vertices;
+        int[] triangles = mesh.triangles;
+
+        List<MeshMsg> meshMsgs = new List<MeshMsg>();
+        MeshMsg meshMsg = new MeshMsg();
+
+        List<PointMsg> points = new List<PointMsg>();
+        foreach (var vertex in vertices)
+        {
+            Vector3 worldVertex = m_Table.transform.TransformPoint(vertex);
+            points.Add(new PointMsg(worldVertex.x, worldVertex.y, worldVertex.z));
+        }
+
+        List<MeshTriangleMsg> triangleMsgs = new List<MeshTriangleMsg>();
+        for (int i = 0; i < triangles.Length; i += 3)
+        {
+            MeshTriangleMsg triangleMsg = new MeshTriangleMsg
+            {
+                vertex_indices = new uint[] { (uint)triangles[i], (uint)triangles[i + 1], (uint)triangles[i + 2] }
+            };
+            triangleMsgs.Add(triangleMsg);
+        }
+
+        meshMsg.vertices = points.ToArray();
+        meshMsg.triangles = triangleMsgs.ToArray();
+        meshMsgs.Add(meshMsg);
+
+        Vector3 unityPosition = m_Table.transform.position;
+        Quaternion unityRotation = m_Table.transform.rotation;
+        Quaternion adjustment = Quaternion.Euler(90, 0, 0);
+        Quaternion rosQuaternion = unityRotation * adjustment;
+
+        var tablePose = new PoseMsg
+        {
+            position = unityPosition.To<FLU>(),
+            orientation = new QuaternionMsg(
+                rosQuaternion.x,
+                rosQuaternion.y,
+                rosQuaternion.z,
+                rosQuaternion.w
+            )
+        };
+
+        var collisionObject = new CollisionObjectMsg
+        {
+            header = new HeaderMsg
+            {
+                frame_id = "world"
+            },
+            id = "table",
+            operation = CollisionObjectMsg.ADD,
+            mesh_poses = new List<PoseMsg> { tablePose }.ToArray(),
+            meshes = meshMsgs.ToArray()
+        };
+
+        Debug.Log($"Collision Object ID: {collisionObject.id}");
+        Debug.Log($"Mesh Vertex Count: {mesh.vertexCount}");
+        Debug.Log($"Mesh Pose: Position - {tablePose.position.x}, {tablePose.position.y}, {tablePose.position.z} | Orientation - {tablePose.orientation.x}, {tablePose.orientation.y}, {tablePose.orientation.z}, {tablePose.orientation.w}");
+
+        m_Ros.Publish("/collision_object", collisionObject);
+    }
+
 }
