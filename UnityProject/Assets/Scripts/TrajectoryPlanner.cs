@@ -1,8 +1,12 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using RosMessageTypes.Geometry;
 using RosMessageTypes.Ur10eRg2Moveit;
+using RosMessageTypes.Moveit;
+using RosMessageTypes.Std;
+using RosMessageTypes.Shape;
 using Unity.Robotics.ROSTCPConnector;
 using Unity.Robotics.ROSTCPConnector.ROSGeometry;
 using UnityEngine;
@@ -16,6 +20,8 @@ public class TrajectoryPlanner : MonoBehaviour
 
     // Variables required for ROS communication
     [SerializeField]
+    private string m_TopicName = "/collision_object";
+    [SerializeField]
     string m_RosServiceName = "ur10e_rg2_moveit";
     public string RosServiceName { get => m_RosServiceName; set => m_RosServiceName = value; }
 
@@ -28,6 +34,8 @@ public class TrajectoryPlanner : MonoBehaviour
     [SerializeField]
     GameObject m_TargetPlacement;
     public GameObject TargetPlacement { get => m_TargetPlacement; set => m_TargetPlacement = value; }
+    [SerializeField]
+    GameObject m_Table;
 
     // Assures that the gripper is always positioned above the m_Target cube before grasping.
     readonly Quaternion m_PickOrientation = Quaternion.Euler(180, 90, 0);
@@ -52,6 +60,8 @@ public class TrajectoryPlanner : MonoBehaviour
         // Get ROS connection static instance
         m_Ros = ROSConnection.GetOrCreateInstance();
         m_Ros.RegisterRosService<MoverServiceRequest, MoverServiceResponse>(m_RosServiceName);
+        // Register the collision object publisher
+        m_Ros.RegisterPublisher<CollisionObjectMsg>(m_TopicName);
 
         m_JointArticulationBodies = new ArticulationBody[k_NumRobotJoints];
 
@@ -129,6 +139,9 @@ public class TrajectoryPlanner : MonoBehaviour
     /// </summary>
     public void PublishJoints()
     {
+        // Publish the table mesh at the start
+        PublishTableMesh();
+
         var request = new MoverServiceRequest();
         request.joints_input = CurrentJointConfig();
 
@@ -224,4 +237,85 @@ public class TrajectoryPlanner : MonoBehaviour
         PickUp,
         Place
     }
+
+    void PublishTableMesh()
+    {
+        // Get the MeshFilter component from the Table GameObject
+        MeshFilter meshFilter = m_Table.GetComponent<MeshFilter>();
+        if (meshFilter == null)
+        {
+            Debug.LogError("MeshFilter component not found on Table GameObject.");
+            return;
+        }
+
+        // Retrieve the mesh, vertices, and triangles data
+        Mesh mesh = meshFilter.mesh;
+        Vector3[] vertices = mesh.vertices;
+        int[] triangles = mesh.triangles;
+
+        // Validate mesh data
+        if (vertices == null || vertices.Length == 0 || triangles == null || triangles.Length == 0)
+        {
+            Debug.LogError("Mesh data is invalid or empty.");
+            return;
+        }
+
+        // Prepare vertices and triangles for ROS messages
+        List<PointMsg> points = new List<PointMsg>();
+        foreach (Vector3 vertex in vertices)
+        {
+            // Convert vertex to FLU orientation and add to points list
+            var fluVertex = m_Table.transform.TransformPoint(vertex).To<FLU>();
+            points.Add(new PointMsg(fluVertex.x, fluVertex.y, fluVertex.z));
+        }
+
+        List<MeshTriangleMsg> triangleMsgs = new List<MeshTriangleMsg>();
+        for (int i = 0; i < triangles.Length; i += 3)
+        {
+            triangleMsgs.Add(new MeshTriangleMsg
+            {
+                vertex_indices = new uint[]
+                {
+                    (uint)triangles[i],
+                    (uint)triangles[i + 2], // Swap these two indices
+                    (uint)triangles[i + 1]
+                }
+            });
+        }
+
+
+        // Create MeshMsg
+        MeshMsg meshMsg = new MeshMsg
+        {
+            vertices = points.ToArray(),
+            triangles = triangleMsgs.ToArray()
+        };
+
+        Quaternion unityRotation = m_Table.transform.rotation;
+        Debug.Log($"Original Unity Rotation: {unityRotation.eulerAngles}");
+        Debug.Log($"Converted FLU Rotation: {unityRotation.eulerAngles.To<FLU>()}");
+        // Get the table's position and rotation in FLU
+        PoseMsg tablePose = new PoseMsg
+        {
+            position = m_Table.transform.position.To<FLU>(),
+            orientation = m_Table.transform.rotation.To<FLU>()
+        };
+
+        // Create CollisionObjectMsg
+        var collisionObject = new CollisionObjectMsg
+        {
+            header = new HeaderMsg
+            {
+                frame_id = "world"
+            },
+            id = "table",
+            operation = CollisionObjectMsg.ADD,
+            mesh_poses = new PoseMsg[] { tablePose },
+            meshes = new MeshMsg[] { meshMsg }
+        };
+
+        // Publish the CollisionObjectMsg
+        m_Ros.Publish("/collision_object", collisionObject);
+    }
+
 }

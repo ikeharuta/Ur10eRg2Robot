@@ -9,8 +9,8 @@
         <param name="tcp_port" type="int" value="$(arg tcp_port)"/>
     </node>
 
-    <!-- Mover Node -->
-    <node name="mover" pkg="ur10e_rg2_moveit" type="mover.py" args="--wait" output="screen"/>
+    <!-- Table Subscriber Node -->
+    <node name="table_subscriber" pkg="ur10e_rg2_moveit" type="table_subscriber.py" args="--wait" output="screen"/>
 
     <!-- Specify the planning pipeline -->
     <arg name="pipeline" default="ompl" />
