@@ -271,20 +271,10 @@ public class TrajectoryPlanner : MonoBehaviour
         meshMsg.triangles = triangleMsgs.ToArray();
         meshMsgs.Add(meshMsg);
 
-        Vector3 unityPosition = m_Table.transform.position;
-        Quaternion unityRotation = m_Table.transform.rotation;
-        Quaternion adjustment = Quaternion.Euler(90, 0, 0);
-        Quaternion rosQuaternion = unityRotation * adjustment;
-
         var tablePose = new PoseMsg
         {
-            position = unityPosition.To<FLU>(),
-            orientation = new QuaternionMsg(
-                rosQuaternion.x,
-                rosQuaternion.y,
-                rosQuaternion.z,
-                rosQuaternion.w
-            )
+            position = m_Table.transform.position.To<FLU>(),
+            orientation = m_Table.transform.rotation.To<FLU>()
         };
 
         var collisionObject = new CollisionObjectMsg
