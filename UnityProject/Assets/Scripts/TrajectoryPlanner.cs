@@ -240,43 +240,68 @@ public class TrajectoryPlanner : MonoBehaviour
 
     void PublishTableMesh()
     {
-        Debug.Log("Mesh is published");
+        // Get the MeshFilter component from the Table GameObject
         MeshFilter meshFilter = m_Table.GetComponent<MeshFilter>();
+        if (meshFilter == null)
+        {
+            Debug.LogError("MeshFilter component not found on Table GameObject.");
+            return;
+        }
 
+        // Retrieve the mesh, vertices, and triangles data
         Mesh mesh = meshFilter.mesh;
         Vector3[] vertices = mesh.vertices;
         int[] triangles = mesh.triangles;
 
-        List<MeshMsg> meshMsgs = new List<MeshMsg>();
-        MeshMsg meshMsg = new MeshMsg();
-
-        List<PointMsg> points = new List<PointMsg>();
-        foreach (var vertex in vertices)
+        // Validate mesh data
+        if (vertices == null || vertices.Length == 0 || triangles == null || triangles.Length == 0)
         {
-            Vector3 worldVertex = m_Table.transform.TransformPoint(vertex);
-            points.Add(new PointMsg(worldVertex.x, worldVertex.y, worldVertex.z));
+            Debug.LogError("Mesh data is invalid or empty.");
+            return;
+        }
+
+        // Prepare vertices and triangles for ROS messages
+        List<PointMsg> points = new List<PointMsg>();
+        foreach (Vector3 vertex in vertices)
+        {
+            // Convert vertex to FLU orientation and add to points list
+            var fluVertex = m_Table.transform.TransformPoint(vertex).To<FLU>();
+            points.Add(new PointMsg(fluVertex.x, fluVertex.y, fluVertex.z));
         }
 
         List<MeshTriangleMsg> triangleMsgs = new List<MeshTriangleMsg>();
         for (int i = 0; i < triangles.Length; i += 3)
         {
-            MeshTriangleMsg triangleMsg = new MeshTriangleMsg
+            triangleMsgs.Add(new MeshTriangleMsg
             {
-                vertex_indices = new uint[] { (uint)triangles[i], (uint)triangles[i + 1], (uint)triangles[i + 2] }
-            };
-            triangleMsgs.Add(triangleMsg);
+                vertex_indices = new uint[]
+                {
+                    (uint)triangles[i],
+                    (uint)triangles[i + 2], // Swap these two indices
+                    (uint)triangles[i + 1]
+                }
+            });
         }
 
-        meshMsg.vertices = points.ToArray();
-        meshMsg.triangles = triangleMsgs.ToArray();
-        meshMsgs.Add(meshMsg);
 
-        var tablePose = new PoseMsg
+        // Create MeshMsg
+        MeshMsg meshMsg = new MeshMsg
+        {
+            vertices = points.ToArray(),
+            triangles = triangleMsgs.ToArray()
+        };
+
+        Quaternion unityRotation = m_Table.transform.rotation;
+        Debug.Log($"Original Unity Rotation: {unityRotation.eulerAngles}");
+        Debug.Log($"Converted FLU Rotation: {unityRotation.eulerAngles.To<FLU>()}");
+        // Get the table's position and rotation in FLU
+        PoseMsg tablePose = new PoseMsg
         {
             position = m_Table.transform.position.To<FLU>(),
             orientation = m_Table.transform.rotation.To<FLU>()
         };
 
+        // Create CollisionObjectMsg
         var collisionObject = new CollisionObjectMsg
         {
             header = new HeaderMsg
@@ -285,14 +310,11 @@ public class TrajectoryPlanner : MonoBehaviour
             },
             id = "table",
             operation = CollisionObjectMsg.ADD,
-            mesh_poses = new List<PoseMsg> { tablePose }.ToArray(),
-            meshes = meshMsgs.ToArray()
+            mesh_poses = new PoseMsg[] { tablePose },
+            meshes = new MeshMsg[] { meshMsg }
         };
 
-        Debug.Log($"Collision Object ID: {collisionObject.id}");
-        Debug.Log($"Mesh Vertex Count: {mesh.vertexCount}");
-        Debug.Log($"Mesh Pose: Position - {tablePose.position.x}, {tablePose.position.y}, {tablePose.position.z} | Orientation - {tablePose.orientation.x}, {tablePose.orientation.y}, {tablePose.orientation.z}, {tablePose.orientation.w}");
-
+        // Publish the CollisionObjectMsg
         m_Ros.Publish("/collision_object", collisionObject);
     }
 
