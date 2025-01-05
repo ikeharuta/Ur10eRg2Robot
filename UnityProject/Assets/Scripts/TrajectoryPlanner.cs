@@ -44,9 +44,10 @@ public class TrajectoryPlanner : MonoBehaviour
 
     // Articulation Bodies
     ArticulationBody[] m_JointArticulationBodies;
-    // TODO: Handle gripper later
-    // ArticulationBody m_LeftGripper;
-    // ArticulationBody m_RightGripper;
+    ArticulationBody m_LeftInnerKnuckle;
+    ArticulationBody m_RightInnerKnuckle;
+    ArticulationBody m_LeftOuterKnuckle;
+    ArticulationBody m_RightOuterKnuckle;
 
     // ROS Connector
     ROSConnection m_Ros;
@@ -72,13 +73,12 @@ public class TrajectoryPlanner : MonoBehaviour
             m_JointArticulationBodies[i] = m_UR10e.transform.Find(linkName).GetComponent<ArticulationBody>();
         }
 
-        // TODO: Handle gripper later
-        // // Find left and right fingers
-        // var rightGripper = linkName + "/tool_link/gripper_base/servo_head/control_rod_right/right_gripper";
-        // var leftGripper = linkName + "/tool_link/gripper_base/servo_head/control_rod_left/left_gripper";
-
-        // m_RightGripper = m_UR10e.transform.Find(rightGripper).GetComponent<ArticulationBody>();
-        // m_LeftGripper = m_UR10e.transform.Find(leftGripper).GetComponent<ArticulationBody>();
+        // Identify gripper joints
+        string gripperBasePath = "base_link/base_link_inertia/shoulder_link/upper_arm_link/forearm_link/wrist_1_link/wrist_2_link/wrist_3_link/onrobot_rg2_base_link";
+        m_LeftInnerKnuckle = m_UR10e.transform.Find(gripperBasePath + "/left_inner_knuckle").GetComponent<ArticulationBody>();
+        m_RightInnerKnuckle = m_UR10e.transform.Find(gripperBasePath + "/right_inner_knuckle").GetComponent<ArticulationBody>();
+        m_LeftOuterKnuckle = m_UR10e.transform.Find(gripperBasePath + "/left_outer_knuckle").GetComponent<ArticulationBody>();
+        m_RightOuterKnuckle = m_UR10e.transform.Find(gripperBasePath + "/right_outer_knuckle").GetComponent<ArticulationBody>();
     }
 
     /// <summary>
@@ -86,16 +86,32 @@ public class TrajectoryPlanner : MonoBehaviour
     /// </summary>
     void CloseGripper()
     {
-        // TODO: Handle gripper later
-        Debug.Log("Gripper Closed.");
-        // var leftDrive = m_LeftGripper.xDrive;
-        // var rightDrive = m_RightGripper.xDrive;
+        if (m_LeftInnerKnuckle && m_RightInnerKnuckle && m_LeftOuterKnuckle && m_RightOuterKnuckle)
+        {
+            Debug.Log("Closing gripper...");
 
-        // leftDrive.target = -0.01f;
-        // rightDrive.target = 0.01f;
+            var leftInnerDrive = m_LeftInnerKnuckle.xDrive;
+            var rightInnerDrive = m_RightInnerKnuckle.xDrive;
+            var leftOuterDrive = m_LeftOuterKnuckle.xDrive;
+            var rightOuterDrive = m_RightOuterKnuckle.xDrive;
 
-        // m_LeftGripper.xDrive = leftDrive;
-        // m_RightGripper.xDrive = rightDrive;
+            // Adjust targets to close the gripper
+            leftInnerDrive.target = 10f; // Adjust as needed
+            rightInnerDrive.target = -10f; // Adjust as needed
+            leftOuterDrive.target = 30f; // Adjust as needed
+            rightOuterDrive.target = -30f; // Adjust as needed
+
+            m_LeftInnerKnuckle.xDrive = leftInnerDrive;
+            m_RightInnerKnuckle.xDrive = rightInnerDrive;
+            m_LeftOuterKnuckle.xDrive = leftOuterDrive;
+            m_RightOuterKnuckle.xDrive = rightOuterDrive;
+
+            Debug.Log("CLosing complete");
+        }
+        else
+        {
+            Debug.LogWarning("Gripper knuckles not initialized.");
+        }
     }
 
     /// <summary>
@@ -103,16 +119,32 @@ public class TrajectoryPlanner : MonoBehaviour
     /// </summary>
     void OpenGripper()
     {
-        // TODO: Handle gripper later
-        Debug.Log("Gripper Opened.");
-        // var leftDrive = m_LeftGripper.xDrive;
-        // var rightDrive = m_RightGripper.xDrive;
+        if (m_LeftInnerKnuckle && m_RightInnerKnuckle && m_LeftOuterKnuckle && m_RightOuterKnuckle)
+        {
+            Debug.Log("Opening gripper...");
 
-        // leftDrive.target = 0.01f;
-        // rightDrive.target = -0.01f;
+            var leftInnerDrive = m_LeftInnerKnuckle.xDrive;
+            var rightInnerDrive = m_RightInnerKnuckle.xDrive;
+            var leftOuterDrive = m_LeftOuterKnuckle.xDrive;
+            var rightOuterDrive = m_RightOuterKnuckle.xDrive;
 
-        // m_LeftGripper.xDrive = leftDrive;
-        // m_RightGripper.xDrive = rightDrive;
+            // Adjust targets to open the gripper
+            leftInnerDrive.target = -10f; // Adjust as needed
+            rightInnerDrive.target = 10f; // Adjust as needed
+            leftOuterDrive.target = -30f; // Adjust as needed
+            rightOuterDrive.target = 30f; // Adjust as needed
+
+            m_LeftInnerKnuckle.xDrive = leftInnerDrive;
+            m_RightInnerKnuckle.xDrive = rightInnerDrive;
+            m_LeftOuterKnuckle.xDrive = leftOuterDrive;
+            m_RightOuterKnuckle.xDrive = rightOuterDrive;
+
+            Debug.Log("Opening complete");
+        }
+        else
+        {
+            Debug.LogWarning("Gripper knuckles not initialized.");
+        }
     }
 
     /// <summary>
