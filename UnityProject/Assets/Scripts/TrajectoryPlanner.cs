@@ -42,12 +42,16 @@ public class TrajectoryPlanner : MonoBehaviour
     // TODO: Adjust for better position offset
     readonly Vector3 m_PickPoseOffset = Vector3.up * 0.35f;
 
-    // Articulation Bodies
+    // Articulation Bodies for the Robot arm
     ArticulationBody[] m_JointArticulationBodies;
+    // Articulation Bodies for the Gripper
     ArticulationBody m_LeftInnerKnuckle;
     ArticulationBody m_RightInnerKnuckle;
     ArticulationBody m_LeftOuterKnuckle;
     ArticulationBody m_RightOuterKnuckle;
+    ArticulationBody m_leftInnerFinger;
+    ArticulationBody m_rightInnerFinger;
+
 
     // ROS Connector
     ROSConnection m_Ros;
@@ -79,6 +83,13 @@ public class TrajectoryPlanner : MonoBehaviour
         m_RightInnerKnuckle = m_UR10e.transform.Find(gripperBasePath + "/right_inner_knuckle").GetComponent<ArticulationBody>();
         m_LeftOuterKnuckle = m_UR10e.transform.Find(gripperBasePath + "/left_outer_knuckle").GetComponent<ArticulationBody>();
         m_RightOuterKnuckle = m_UR10e.transform.Find(gripperBasePath + "/right_outer_knuckle").GetComponent<ArticulationBody>();
+        m_leftInnerFinger = m_UR10e.transform.Find(gripperBasePath + "/left_outer_knuckle/left_inner_finger").GetComponent<ArticulationBody>();
+        m_rightInnerFinger = m_UR10e.transform.Find(gripperBasePath + "/right_outer_knuckle/right_inner_finger").GetComponent<ArticulationBody>();
+
+        if (!m_LeftInnerKnuckle || !m_RightInnerKnuckle || !m_LeftOuterKnuckle || !m_RightOuterKnuckle || !m_leftInnerFinger || !m_rightInnerFinger)
+        {
+            Debug.LogError("Some gripper articulation bodies are missing. Please check the hierarchy.");
+        }
     }
 
     /// <summary>
@@ -86,32 +97,9 @@ public class TrajectoryPlanner : MonoBehaviour
     /// </summary>
     void CloseGripper()
     {
-        if (m_LeftInnerKnuckle && m_RightInnerKnuckle && m_LeftOuterKnuckle && m_RightOuterKnuckle)
-        {
-            Debug.Log("Closing gripper...");
+        float closeValue = 30f;
 
-            var leftInnerDrive = m_LeftInnerKnuckle.xDrive;
-            var rightInnerDrive = m_RightInnerKnuckle.xDrive;
-            var leftOuterDrive = m_LeftOuterKnuckle.xDrive;
-            var rightOuterDrive = m_RightOuterKnuckle.xDrive;
-
-            // Adjust targets to close the gripper
-            leftInnerDrive.target = 10f; // Adjust as needed
-            rightInnerDrive.target = -10f; // Adjust as needed
-            leftOuterDrive.target = 30f; // Adjust as needed
-            rightOuterDrive.target = -30f; // Adjust as needed
-
-            m_LeftInnerKnuckle.xDrive = leftInnerDrive;
-            m_RightInnerKnuckle.xDrive = rightInnerDrive;
-            m_LeftOuterKnuckle.xDrive = leftOuterDrive;
-            m_RightOuterKnuckle.xDrive = rightOuterDrive;
-
-            Debug.Log("CLosing complete");
-        }
-        else
-        {
-            Debug.LogWarning("Gripper knuckles not initialized.");
-        }
+        SetGripperPosition(closeValue);
     }
 
     /// <summary>
@@ -119,32 +107,9 @@ public class TrajectoryPlanner : MonoBehaviour
     /// </summary>
     void OpenGripper()
     {
-        if (m_LeftInnerKnuckle && m_RightInnerKnuckle && m_LeftOuterKnuckle && m_RightOuterKnuckle)
-        {
-            Debug.Log("Opening gripper...");
+        float openValue = 0.0f;
 
-            var leftInnerDrive = m_LeftInnerKnuckle.xDrive;
-            var rightInnerDrive = m_RightInnerKnuckle.xDrive;
-            var leftOuterDrive = m_LeftOuterKnuckle.xDrive;
-            var rightOuterDrive = m_RightOuterKnuckle.xDrive;
-
-            // Adjust targets to open the gripper
-            leftInnerDrive.target = -10f; // Adjust as needed
-            rightInnerDrive.target = 10f; // Adjust as needed
-            leftOuterDrive.target = -30f; // Adjust as needed
-            rightOuterDrive.target = 30f; // Adjust as needed
-
-            m_LeftInnerKnuckle.xDrive = leftInnerDrive;
-            m_RightInnerKnuckle.xDrive = rightInnerDrive;
-            m_LeftOuterKnuckle.xDrive = leftOuterDrive;
-            m_RightOuterKnuckle.xDrive = rightOuterDrive;
-
-            Debug.Log("Opening complete");
-        }
-        else
-        {
-            Debug.LogWarning("Gripper knuckles not initialized.");
-        }
+        SetGripperPosition(openValue);
     }
 
     /// <summary>
@@ -181,10 +146,8 @@ public class TrajectoryPlanner : MonoBehaviour
         request.pick_pose = new PoseMsg
         {
             position = (m_Target.transform.position + m_PickPoseOffset).To<FLU>(),
-            orientation = Quaternion.Euler(180, m_Target.transform.eulerAngles.y, 0).To<FLU>()
+            orientation = Quaternion.Euler(180, m_Target.transform.eulerAngles.y + 90, 0).To<FLU>()
         };
-
-        Debug.Log($"Pick Pose: Position: {request.pick_pose.position.x}, {request.pick_pose.position.y}, {request.pick_pose.position.z} | Orientation: {request.pick_pose.orientation.x}, {request.pick_pose.orientation.y}, {request.pick_pose.orientation.z}, {request.pick_pose.orientation.w}");
 
         // Place Pose
         request.place_pose = new PoseMsg
@@ -192,8 +155,6 @@ public class TrajectoryPlanner : MonoBehaviour
             position = (m_TargetPlacement.transform.position + m_PickPoseOffset).To<FLU>(),
             orientation = m_PickOrientation.To<FLU>()
         };
-
-        Debug.Log($"Place Pose: Position: {request.place_pose.position.x}, {request.place_pose.position.y}, {request.place_pose.position.z} | Orientation: {request.place_pose.orientation.x}, {request.place_pose.orientation.y}, {request.place_pose.orientation.z}, {request.place_pose.orientation.w}");
 
         m_Ros.SendServiceMessage<MoverServiceResponse>(m_RosServiceName, request, TrajectoryResponse);
     }
@@ -323,9 +284,6 @@ public class TrajectoryPlanner : MonoBehaviour
             triangles = triangleMsgs.ToArray()
         };
 
-        Quaternion unityRotation = m_Table.transform.rotation;
-        Debug.Log($"Original Unity Rotation: {unityRotation.eulerAngles}");
-        Debug.Log($"Converted FLU Rotation: {unityRotation.eulerAngles.To<FLU>()}");
         // Get the table's position and rotation in FLU
         PoseMsg tablePose = new PoseMsg
         {
@@ -348,6 +306,33 @@ public class TrajectoryPlanner : MonoBehaviour
 
         // Publish the CollisionObjectMsg
         m_Ros.Publish("/collision_object", collisionObject);
+    }
+
+    void SetGripperPosition(float position)
+    {
+        ArticulationDrive drive = m_LeftInnerKnuckle.xDrive;
+        drive.target = -position;
+        m_LeftInnerKnuckle.xDrive = drive;
+
+        drive = m_RightInnerKnuckle.xDrive;
+        drive.target = -position;
+        m_RightInnerKnuckle.xDrive = drive;
+
+        drive = m_LeftOuterKnuckle.xDrive;
+        drive.target = position;
+        m_LeftOuterKnuckle.xDrive = drive;
+
+        drive = m_RightOuterKnuckle.xDrive;
+        drive.target = -position;
+        m_RightOuterKnuckle.xDrive = drive;
+
+        drive = m_leftInnerFinger.xDrive;
+        drive.target = position;
+        m_leftInnerFinger.xDrive = drive;
+
+        drive = m_rightInnerFinger.xDrive;
+        drive.target = position;
+        m_rightInnerFinger.xDrive = drive;
     }
 
 }
