@@ -34,13 +34,23 @@ public class TrajectoryPlanner : MonoBehaviour
     [SerializeField]
     GameObject m_TargetPlacement;
     public GameObject TargetPlacement { get => m_TargetPlacement; set => m_TargetPlacement = value; }
+    // [SerializeField]
+    // GameObject m_Table;
+    // [SerializeField]
+    // GameObject m_3DPrinter ;
+
     [SerializeField]
     GameObject m_Table;
+    public GameObject Table { get => m_Table; set => m_Table = value; }
+    [SerializeField]
+    GameObject m_Printer;
+    public GameObject Printer { get => m_Printer; set => m_Printer = value; }
+
 
     // Assures that the gripper is always positioned above the m_Target cube before grasping.
     readonly Quaternion m_PickOrientation = Quaternion.Euler(180, 90, 0);
     // TODO: Adjust for better position offset
-    readonly Vector3 m_PickPoseOffset = Vector3.up * 0.35f;
+    readonly Vector3 m_PickPoseOffset = Vector3.up * 0.27f;
 
     // Articulation Bodies for the Robot arm
     ArticulationBody[] m_JointArticulationBodies;
@@ -97,7 +107,7 @@ public class TrajectoryPlanner : MonoBehaviour
     /// </summary>
     void CloseGripper()
     {
-        float closeValue = 30f;
+        float closeValue = 25f;
 
         SetGripperPosition(closeValue);
     }
@@ -107,7 +117,7 @@ public class TrajectoryPlanner : MonoBehaviour
     /// </summary>
     void OpenGripper()
     {
-        float openValue = 0.0f;
+        float openValue = 10f;
 
         SetGripperPosition(openValue);
     }
@@ -138,6 +148,8 @@ public class TrajectoryPlanner : MonoBehaviour
     {
         // Publish the table mesh at the start
         PublishTableMesh();
+        // Publish the printer mesh at the start
+        PublishPrinterMesh();
 
         var request = new MoverServiceRequest();
         request.joints_input = CurrentJointConfig();
@@ -287,8 +299,12 @@ public class TrajectoryPlanner : MonoBehaviour
         // Get the table's position and rotation in FLU
         PoseMsg tablePose = new PoseMsg
         {
-            position = m_Table.transform.position.To<FLU>(),
-            orientation = m_Table.transform.rotation.To<FLU>()
+            // Set the position of the object to the origin (0, 0, 0) in the base_link frame
+            position = new PointMsg(0.0, 0.0, 0.0),
+
+            // Set the orientation of the object to no rotation (identity quaternion) in the base_link frame
+            orientation = new QuaternionMsg(0.0, 0.0, 0.0, 1.0)
+
         };
 
         // Create CollisionObjectMsg
@@ -296,13 +312,100 @@ public class TrajectoryPlanner : MonoBehaviour
         {
             header = new HeaderMsg
             {
-                frame_id = "world"
+                frame_id = "base_link"
             },
             id = "table",
             operation = CollisionObjectMsg.ADD,
             mesh_poses = new PoseMsg[] { tablePose },
             meshes = new MeshMsg[] { meshMsg }
         };
+
+        Debug.Log($"Unity Position: {m_Table.transform.position}");
+        Debug.Log($"Unity Roatation: {m_Table.transform.rotation}");
+        Debug.Log($"Position sent to ROS: {tablePose.position.x},{tablePose.position.y},{tablePose.position.z}");
+        Debug.Log($"Rotation sent to ROS: {tablePose.orientation.x},{tablePose.orientation.y},{tablePose.orientation.z},{tablePose.orientation.w}");
+
+        // Publish the CollisionObjectMsg
+        m_Ros.Publish("/collision_object", collisionObject);
+    }
+
+    void PublishPrinterMesh()
+    {
+        // Get the MeshFilter component from the 3D Printer GameObject
+        MeshFilter meshFilter = m_Printer.GetComponent<MeshFilter>();
+        if (meshFilter == null)
+        {
+            Debug.LogError("MeshFilter component not found on 3D Printer GameObject.");
+            return;
+        }
+
+        // Retrieve the mesh, vertices, and triangles data
+        Mesh mesh = meshFilter.mesh;
+        Vector3[] vertices = mesh.vertices;
+        int[] triangles = mesh.triangles;
+
+        // Validate mesh data
+        if (vertices == null || vertices.Length == 0 || triangles == null || triangles.Length == 0)
+        {
+            Debug.LogError("Mesh data is invalid or empty.");
+            return;
+        }
+        // Prepare vertices and triangles for ROS messages
+        List<PointMsg> points = new List<PointMsg>();
+        foreach (Vector3 vertex in vertices)
+        {
+            // Convert vertex to FLU orientation and add to points list
+            var fluVertex = m_Printer.transform.TransformPoint(vertex).To<FLU>();
+            points.Add(new PointMsg(fluVertex.x, fluVertex.y, fluVertex.z));
+        }
+
+        List<MeshTriangleMsg> triangleMsgs = new List<MeshTriangleMsg>();
+        for (int i = 0; i < triangles.Length; i += 3)
+        {
+            triangleMsgs.Add(new MeshTriangleMsg
+            {
+                vertex_indices = new uint[]
+                {
+                    (uint)triangles[i],
+                    (uint)triangles[i + 2], // Swap these two indices
+                    (uint)triangles[i + 1]
+                }
+            });
+        }
+
+        // Create MeshMsg
+        MeshMsg meshMsg = new MeshMsg
+        {
+            vertices = points.ToArray(),
+            triangles = triangleMsgs.ToArray()
+        };
+        
+        PoseMsg printerPose = new PoseMsg
+        {
+            // Set the position of the object to the origin (0, 0, 0) in the base_link frame
+            position = new PointMsg(0.0, 0.0, 0.0),
+
+            // Set the orientation of the object to no rotation (identity quaternion) in the base_link frame
+            orientation = new QuaternionMsg(0.0, 0.0, 0.0, 1.0)
+        };
+
+        // Create CollisionObjectMsg
+        var collisionObject = new CollisionObjectMsg
+        {
+            header = new HeaderMsg
+            {
+                frame_id = "base_link"
+            },
+            id = "3d_printer",
+            operation = CollisionObjectMsg.ADD,
+            mesh_poses = new PoseMsg[] { printerPose },
+            meshes = new MeshMsg[] { meshMsg }
+        };
+
+        Debug.Log($"Unity Position: {m_Printer.transform.position}");
+        Debug.Log($"Unity Roatation: {m_Printer.transform.rotation}");
+        Debug.Log($"Position sent to ROS: {printerPose.position.x},{printerPose.position.y},{printerPose.position.z}");
+        Debug.Log($"Rotation sent to ROS: {printerPose.orientation.x},{printerPose.orientation.y},{printerPose.orientation.z},{printerPose.orientation.w}");
 
         // Publish the CollisionObjectMsg
         m_Ros.Publish("/collision_object", collisionObject);
