@@ -31,6 +31,7 @@ else:
 
 """
     Callback function to log the received collision object message.
+    Given the start angles of the robot, plan a trajectory that ends at the destination pose.
 """
 def collision_callback(msg):
     rospy.loginfo("Received a new collision object message:")
@@ -40,30 +41,31 @@ def collision_callback(msg):
         rospy.loginfo("Pose: position - x=%f, y=%f, z=%f", pose.position.x, pose.position.y, pose.position.z)
         rospy.loginfo("Pose: orientation - x=%f, y=%f, z=%f, w=%f", pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w)
    
-"""
-    Given the start angles of the robot, plan a trajectory that ends at the destination pose.
-"""
-def plan_trajectory(move_group, destination_pose, start_joint_angles): 
-    current_joint_state = JointState()
-    current_joint_state.name = joint_names
-    current_joint_state.position = start_joint_angles
+def plan_trajectory(move_group, destination_pose, start_joint_angles, max_attempts=100): 
+    for attempt in range(max_attempts):
+        try:
+            current_joint_state = JointState()
+            current_joint_state.name = joint_names
+            current_joint_state.position = start_joint_angles
 
-    moveit_robot_state = RobotState()
-    moveit_robot_state.joint_state = current_joint_state
-    move_group.set_start_state(moveit_robot_state)
+            moveit_robot_state = RobotState()
+            moveit_robot_state.joint_state = current_joint_state
+            move_group.set_start_state(moveit_robot_state)
 
-    move_group.set_pose_target(destination_pose)
-    plan = move_group.plan()
+            move_group.set_planner_id("RRT")
+            move_group.set_planning_time(15.0)
 
-    if not plan:
-        exception_str = """
-            Trajectory could not be planned for a destination of {} with starting joint angles {}.
-            Please make sure target and destination are reachable by the robot.
-        """.format(destination_pose, destination_pose)
-        raise Exception(exception_str)
+            move_group.set_pose_target(destination_pose)
+            plan = move_group.plan()
 
-    return planCompat(plan)
+            if plan and plan[1].joint_trajectory.points:
+                return planCompat(plan)
 
+        except Exception as e:
+            rospy.logwarn(f"Planning attempt {attempt + 1} failed: {e}")
+
+    raise Exception(f"Trajectory planning failed after {max_attempts} attempts.")
+    
 """
     Creates a pick and place plan using the four states below.
     
@@ -128,7 +130,6 @@ def plan_pick_and_place(req):
     move_group.clear_pose_targets()
 
     return response
-
 
 def moveit_server():
     """

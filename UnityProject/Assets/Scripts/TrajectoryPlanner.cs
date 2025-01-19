@@ -48,7 +48,7 @@ public class TrajectoryPlanner : MonoBehaviour
 
 
     // Assures that the gripper is always positioned above the m_Target cube before grasping.
-    readonly Quaternion m_PickOrientation = Quaternion.Euler(180, 90, 0);
+    readonly Quaternion m_PickOrientation = Quaternion.Euler(180, 180, 0);
     // TODO: Adjust for better position offset
     readonly Vector3 m_PickPoseOffset = Vector3.up * 0.27f;
 
@@ -107,7 +107,7 @@ public class TrajectoryPlanner : MonoBehaviour
     /// </summary>
     void CloseGripper()
     {
-        float closeValue = 25f;
+        float closeValue = 35f;
 
         SetGripperPosition(closeValue);
     }
@@ -117,7 +117,7 @@ public class TrajectoryPlanner : MonoBehaviour
     /// </summary>
     void OpenGripper()
     {
-        float openValue = 10f;
+        float openValue = 0f;
 
         SetGripperPosition(openValue);
     }
@@ -158,7 +158,7 @@ public class TrajectoryPlanner : MonoBehaviour
         request.pick_pose = new PoseMsg
         {
             position = (m_Target.transform.position + m_PickPoseOffset).To<FLU>(),
-            orientation = Quaternion.Euler(180, m_Target.transform.eulerAngles.y + 90, 0).To<FLU>()
+            orientation = Quaternion.Euler(180, m_Target.transform.eulerAngles.y, 0).To<FLU>()
         };
 
         // Place Pose
